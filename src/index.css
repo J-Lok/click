@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-slate-950 text-slate-100 antialiased min-h-screen;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.card {
+  @apply bg-slate-800/80 border border-slate-600 rounded-xl shadow-lg text-slate-100;
+}
+
+.card-inner {
+  @apply p-4 sm:p-5;
+}
+
