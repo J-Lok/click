@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { ownerApi } from '../../api/owner';
+import type { AxiosResponse } from 'axios';
 import { useRestaurantStore } from '../../store/restaurantStore';
 import {
   LayoutDashboard,
@@ -43,11 +44,11 @@ export function AppLayout() {
       setRestaurantError(null);
       ownerApi
         .getMyRestaurants({ limit: 1 })
-        .then((r) => {
+        .then((r: AxiosResponse) => {
           const list = r.data as RestaurantSummary[];
           if (list?.length && list[0]?.id) setCurrentRestaurantId(list[0].id);
         })
-        .catch((err) => setRestaurantError(getApiErrorMessage(err)));
+        .catch((err: unknown) => setRestaurantError(getApiErrorMessage(err)));
     }
   }, [currentRestaurantId, setCurrentRestaurantId]);
 

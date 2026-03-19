@@ -1,14 +1,7 @@
 import { api } from './client';
+import type { OrderStatus } from '../types';
 
-export type OrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'preparing'
-  | 'ready'
-  | 'in_delivery'
-  | 'delivered'
-  | 'completed'
-  | 'cancelled';
+export type { OrderStatus };
 
 export const ordersApi = {
   updateStatus: (orderId: string, status: OrderStatus) =>
