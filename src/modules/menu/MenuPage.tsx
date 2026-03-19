@@ -7,16 +7,13 @@ import {
   type MenuItemCreateOwner,
   type MenuItemUpdateOwner,
 } from '../../api/menusOwner';
+import type { MenuItem } from '../../types';
 import { Utensils, Plus, Pencil, Trash2 } from 'lucide-react';
 
-interface MenuItemRow {
-  id: string;
-  name: string;
-  price?: number;
-  category?: string;
-  description?: string;
-  is_available?: boolean;
-  preparation_time?: number;
+/** Invalidates every query that reads menu data for this restaurant. */
+function invalidateMenuQueries(qc: ReturnType<typeof useQueryClient>, restaurantId: string) {
+  qc.invalidateQueries({ queryKey: ['menu-items', restaurantId] });
+  qc.invalidateQueries({ queryKey: ['owner-menu', restaurantId] });
 }
 
 export function MenuPage() {
@@ -24,60 +21,43 @@ export function MenuPage() {
   const queryClient = useQueryClient();
   const [category, setCategory] = useState('');
   const [availableOnly, setAvailableOnly] = useState(false);
-  const [editingItem, setEditingItem] = useState<MenuItemRow | null>(null);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // Affichage principal via endpoint public /menu-items/restaurant/{id}/menu
+  // Filters are sent to the API — no redundant client-side re-filtering.
   const {
     data: publicItems,
     isLoading,
     isError,
   } = useMenuItems(restaurantId, {
     category: category || undefined,
-    available_only: availableOnly,
+    available_only: availableOnly || undefined,
   });
 
-  const list = Array.isArray(publicItems)
-    ? (publicItems as MenuItemRow[])
-    : [];
-
-  const filteredList = list.filter((i) => {
-    if (category && i.category !== category) return false;
-    if (availableOnly && i.is_available === false) return false;
-    return true;
-  });
+  const list: MenuItem[] = Array.isArray(publicItems) ? (publicItems as MenuItem[]) : [];
 
   const createMutation = useMutation({
     mutationFn: (data: MenuItemCreateOwner) =>
       menusOwnerApi.createItem(restaurantId!, data).then((r) => r.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['owner-menu', restaurantId] });
+      invalidateMenuQueries(queryClient, restaurantId!);
       setCreating(false);
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({
-      itemId,
-      data,
-    }: {
-      itemId: string;
-      data: MenuItemUpdateOwner;
-    }) =>
-      menusOwnerApi
-        .updateItem(restaurantId!, itemId, data)
-        .then((r) => r.data),
+    mutationFn: ({ itemId, data }: { itemId: string; data: MenuItemUpdateOwner }) =>
+      menusOwnerApi.updateItem(restaurantId!, itemId, data).then((r) => r.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['owner-menu', restaurantId] });
+      invalidateMenuQueries(queryClient, restaurantId!);
       setEditingItem(null);
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (itemId: string) =>
-      menusOwnerApi.deleteItem(restaurantId!, itemId),
+    mutationFn: (itemId: string) => menusOwnerApi.deleteItem(restaurantId!, itemId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['owner-menu', restaurantId] });
+      invalidateMenuQueries(queryClient, restaurantId!);
       setEditingItem(null);
     },
   });
@@ -132,22 +112,16 @@ export function MenuPage() {
       </div>
 
       {isLoading ? (
-        <div className="card card-inner text-center text-slate-400 py-12">
-          Chargement...
-        </div>
+        <div className="card card-inner text-center text-slate-400 py-12">Chargement...</div>
       ) : isError ? (
         <div className="card card-inner bg-red-500/10 border-red-500/30 text-red-300 text-sm py-6">
           Erreur lors du chargement du menu.
         </div>
-      ) : filteredList.length === 0 ? (
+      ) : list.length === 0 ? (
         <div className="card card-inner flex flex-col items-center justify-center gap-2 text-slate-400 py-12">
           <Utensils size={40} />
-          <p>
-            {list.length === 0
-              ? 'Aucun plat dans le menu'
-              : 'Aucun plat ne correspond aux filtres'}
-          </p>
-          {list.length === 0 && (
+          <p>{category || availableOnly ? 'Aucun plat ne correspond aux filtres' : 'Aucun plat dans le menu'}</p>
+          {!category && !availableOnly && (
             <button
               type="button"
               onClick={() => setCreating(true)}
@@ -159,11 +133,8 @@ export function MenuPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredList.map((item) => (
-            <div
-              key={item.id}
-              className="card card-inner flex flex-col"
-            >
+          {list.map((item) => (
+            <div key={item.id} className="card card-inner flex flex-col">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-medium text-white">{item.name}</h3>
@@ -176,9 +147,7 @@ export function MenuPage() {
                 </span>
               </div>
               {item.description && (
-                <p className="text-sm text-slate-400 mt-2 line-clamp-2">
-                  {item.description}
-                </p>
+                <p className="text-sm text-slate-400 mt-2 line-clamp-2">{item.description}</p>
               )}
               <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
                 <span
@@ -196,9 +165,7 @@ export function MenuPage() {
                     onClick={() =>
                       updateMutation.mutate({
                         itemId: item.id,
-                        data: {
-                          is_available: !(item.is_available !== false),
-                        },
+                        data: { is_available: item.is_available === false },
                       })
                     }
                     disabled={updateMutation.isPending}
@@ -217,7 +184,7 @@ export function MenuPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm(`Supprimer « ${item.name } » ?`)) {
+                      if (window.confirm(`Supprimer « ${item.name} » ?`)) {
                         deleteMutation.mutate(item.id);
                       }
                     }}
@@ -234,7 +201,6 @@ export function MenuPage() {
         </div>
       )}
 
-      {/* Modal Création */}
       {creating && (
         <MenuItemFormModal
           title="Ajouter un plat"
@@ -255,7 +221,6 @@ export function MenuPage() {
         />
       )}
 
-      {/* Modal Édition */}
       {editingItem && (
         <MenuItemFormModal
           title="Modifier le plat"
@@ -315,19 +280,17 @@ function MenuItemFormModal({
   const [price, setPrice] = useState(String(initial.price));
   const [category, setCategory] = useState(initial.category);
   const [customCategory, setCustomCategory] = useState(
-    initial.category && !categories.includes(initial.category)
-      ? initial.category
-      : ''
+    initial.category && !categories.includes(initial.category) ? initial.category : ''
   );
 
   const effectiveCategory = category || customCategory;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-      <div
-        className="card w-full max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+      onClick={onClose}
+    >
+      <div className="card w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
         <form
           onSubmit={(e) => {
@@ -353,9 +316,7 @@ function MenuItemFormModal({
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">
-              Description (optionnel)
-            </label>
+            <label className="block text-xs text-slate-500 mb-1">Description (optionnel)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -401,9 +362,7 @@ function MenuItemFormModal({
               />
             )}
           </div>
-          {error && (
-            <p className="text-sm text-red-400">{error}</p>
-          )}
+          {error && <p className="text-sm text-red-400">{error}</p>}
           <div className="flex gap-2 pt-2">
             <button
               type="button"

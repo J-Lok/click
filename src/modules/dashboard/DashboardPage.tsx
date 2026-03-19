@@ -2,6 +2,7 @@ import { LayoutDashboard } from 'lucide-react';
 import { useRestaurantStore } from '../../store/restaurantStore';
 import { useRestaurantStatistics } from '../../hooks/useRestaurantStats';
 import { usePendingOrders } from '../../hooks/useRestaurantOrders';
+import type { Order, StatisticsResponse } from '../../types';
 
 export function DashboardPage() {
   const restaurantId = useRestaurantStore((s) => s.currentRestaurantId);
@@ -10,7 +11,7 @@ export function DashboardPage() {
   });
   const { data: pendingOrders, isLoading: ordersLoading } = usePendingOrders(restaurantId);
 
-  const summary = stats?.summary;
+  const summary = (stats as StatisticsResponse | undefined)?.summary;
   const ca = summary?.total_revenue ?? 0;
   const totalOrders = summary?.total_orders ?? 0;
   const completed = summary?.completed_orders ?? 0;
@@ -26,6 +27,8 @@ export function DashboardPage() {
 
   const loading = statsLoading || ordersLoading;
   const hasData = !!restaurantId && !!stats;
+
+  const orders = Array.isArray(pendingOrders) ? (pendingOrders as Order[]) : [];
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -55,12 +58,12 @@ export function DashboardPage() {
         <div className="card-inner">
           {ordersLoading ? (
             <p className="text-slate-400 text-center py-8">Chargement...</p>
-          ) : pendingOrders && pendingOrders.length > 0 ? (
+          ) : orders.length > 0 ? (
             <ul className="space-y-2 text-slate-200">
-              {pendingOrders.slice(0, 5).map((o: { id: string; total_amount?: number; user_name?: string }) => (
+              {orders.slice(0, 5).map((o) => (
                 <li key={o.id} className="flex justify-between text-sm">
                   <span>{o.user_name ?? o.id}</span>
-                  <span>{o.total_amount?.toLocaleString() ?? 0} FCFA</span>
+                  <span>{(o.total_amount ?? 0).toLocaleString()} FCFA</span>
                 </li>
               ))}
             </ul>

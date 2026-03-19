@@ -1,6 +1,9 @@
 import { api } from './client';
+import type { OrderStatus } from '../types';
 
-export const ownerApi = {
-  getMyRestaurants: (params?: { skip?: number; limit?: number }) =>
-    api.get('/restaurants/owner/restaurants', { params }),
+export type { OrderStatus };
+
+export const ordersApi = {
+  updateStatus: (orderId: string, status: OrderStatus) =>
+    api.put(`/orders/${orderId}/status`, { status }),
 };

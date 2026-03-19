@@ -1,12 +1,13 @@
 import { useRestaurantStore } from '../../store/restaurantStore';
 import { useLowStock } from '../../hooks/useLowStock';
+import type { LowStockItem } from '../../types';
 import { Package, AlertTriangle } from 'lucide-react';
 
 export function StockPage() {
   const restaurantId = useRestaurantStore((s) => s.currentRestaurantId);
   const { data: lowStockList, isLoading, isError } = useLowStock(restaurantId);
 
-  const items = Array.isArray(lowStockList) ? lowStockList : [];
+  const items: LowStockItem[] = Array.isArray(lowStockList) ? (lowStockList as LowStockItem[]) : [];
 
   if (!restaurantId) {
     return (
@@ -38,7 +39,7 @@ export function StockPage() {
             <span className="font-medium">Produits en stock faible</span>
           </div>
           <ul className="divide-y divide-slate-700">
-            {items.map((item: { id: string; name: string; stock?: number; alert_level?: number }) => {
+            {items.map((item) => {
               const stock = item.stock ?? 0;
               const alertLevel = item.alert_level ?? 0;
               const pct = alertLevel > 0 ? Math.min(100, (stock / alertLevel) * 100) : 0;
