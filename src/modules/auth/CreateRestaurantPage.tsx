@@ -6,6 +6,7 @@ import { restaurantsApi } from '../../api/restaurants';
 import { useToast } from '../../shared/components/ToastProvider';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const phoneRegex = /^\+237[0-9]{9}$/;
 
 export function CreateRestaurantPage() {
   const [form, setForm] = useState({
@@ -39,11 +40,26 @@ export function CreateRestaurantPage() {
     }
     setLoading(true);
     try {
+      // Ensure phone is in the expected format (+237 plus 9 digits) before sending
+      const rawPhone = form.phone.trim();
+      const numericPhone = rawPhone.replace(/[\s-]/g, '');
+      const phone = numericPhone.startsWith('+237')
+        ? numericPhone
+        : `+237${numericPhone.replace(/^\+?/, '')}`;
+
+      if (!phoneRegex.test(phone)) {
+        const msg =
+          'Numéro camerounais invalide. Format attendu : +237XXXXXXXXX (9 chiffres après +237).';
+        setError(msg);
+        addToast(msg, 'error');
+        return;
+      }
+
       const payload = {
         name: form.name.trim(),
         description: form.description.trim() || form.name.trim(),
         address: form.address.trim(),
-        phone: form.phone.trim(),
+        phone,
         email: form.email.trim(),
         coordinates: { latitude: 4.0483, longitude: 9.7043 },
         opening_hours: DAYS.map((day) => ({
@@ -58,6 +74,12 @@ export function CreateRestaurantPage() {
       if (data.access_token && data.refresh_token) {
         setTokens(data.access_token, data.refresh_token);
         await loadUser();
+      } else {
+        // Sur le premier restaurant, on s'attend à recevoir de nouveaux tokens avec le rôle owner.
+        const msg = 'Le restaurant a été créé, mais le rôle n’a pas été mis à jour. Déconnectez-vous puis reconnectez-vous.';
+        setError(msg);
+        addToast(msg, 'error');
+        return;
       }
       if (data.restaurant?.id) {
         setCurrentRestaurantId(data.restaurant.id);
@@ -65,12 +87,28 @@ export function CreateRestaurantPage() {
       addToast('Restaurant créé. Vous pouvez maintenant gérer votre menu.', 'success');
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : 'Erreur lors de la création du restaurant';
-      setError(String(msg));
-      addToast(String(msg), 'error');
+      let message = 'Erreur lors de la création du restaurant';
+
+      if (err && typeof err === 'object' && 'response' in err) {
+        const data = (err as { response?: { data?: unknown } }).response?.data as
+          | { detail?: unknown }
+          | undefined;
+        const detail = data?.detail;
+
+        if (Array.isArray(detail)) {
+          // FastAPI validation error shape
+          message = detail
+            .map((d: any) => d?.msg || d?.message || d?.type || 'Erreur de validation')
+            .join(' | ');
+        } else if (typeof detail === 'string') {
+          message = detail;
+        }
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+
+      setError(message);
+      addToast(message, 'error');
     } finally {
       setLoading(false);
     }

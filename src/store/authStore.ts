@@ -1,13 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authApi } from '../api/auth';
-import type { User } from '../types';
 import { useRestaurantStore } from './restaurantStore';
 
 interface AuthState {
   accessToken: string | null;
-  refreshToken: string | null;
-  user: User | null;
+  user: { id: string; name: string; role: string } | null;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
@@ -19,25 +17,27 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       accessToken: null,
-      refreshToken: null,
       user: null,
       isAuthenticated: false,
       login: async (username, password) => {
         const { data } = await authApi.login({ username, password });
-        set({
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-          isAuthenticated: true,
-        });
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        set({ accessToken: data.access_token, isAuthenticated: true });
         await get().loadUser();
       },
       logout: () => {
         authApi.logout().catch(() => {});
-        useRestaurantStore.getState().reset();
-        set({ accessToken: null, refreshToken: null, user: null, isAuthenticated: false });
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        // Eviter de garder un `currentRestaurantId` d'un ancien utilisateur
+        useRestaurantStore.getState().setCurrentRestaurantId(null);
+        set({ accessToken: null, user: null, isAuthenticated: false });
       },
       setTokens: (access, refresh) => {
-        set({ accessToken: access, refreshToken: refresh, isAuthenticated: true });
+        localStorage.setItem('access_token', access);
+        localStorage.setItem('refresh_token', refresh);
+        set({ accessToken: access, isAuthenticated: true });
       },
       loadUser: async () => {
         try {
@@ -58,7 +58,6 @@ export const useAuthStore = create<AuthState>()(
       name: 'auth',
       partialize: (s) => ({
         accessToken: s.accessToken,
-        refreshToken: s.refreshToken,
         isAuthenticated: !!s.accessToken,
       }),
     }

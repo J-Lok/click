@@ -1,6 +1,6 @@
 import { api } from './client';
 
 export const ownerApi = {
-  getMyRestaurants: (params?: { limit?: number; offset?: number }) =>
-    api.get('/owner/restaurants', { params }),
+  getMyRestaurants: (params?: { skip?: number; limit?: number }) =>
+    api.get('/restaurants/owner/restaurants', { params }),
 };

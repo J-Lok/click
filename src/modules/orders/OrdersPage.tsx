@@ -2,12 +2,10 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRestaurantStore } from '../../store/restaurantStore';
 import { useRestaurantOrders } from '../../hooks/useRestaurantOrders';
-import { ordersApi } from '../../api/orders';
-import { getApiErrorMessage } from '../../lib/apiError';
-import type { Order, OrderStatus, OrdersResponse } from '../../types';
+import { ordersApi, type OrderStatus } from '../../api/orders';
 import { Package, RefreshCw } from 'lucide-react';
 
-const STATUS_LABELS: Record<OrderStatus, string> = {
+const STATUS_LABELS: Record<string, string> = {
   pending: 'En attente',
   confirmed: 'Confirmée',
   preparing: 'En préparation',
@@ -18,7 +16,16 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: 'Annulée',
 };
 
-const ORDER_STATUSES = Object.keys(STATUS_LABELS) as OrderStatus[];
+const ORDER_STATUSES: OrderStatus[] = [
+  'pending',
+  'confirmed',
+  'preparing',
+  'ready',
+  'in_delivery',
+  'delivered',
+  'completed',
+  'cancelled',
+];
 
 export function OrdersPage() {
   const restaurantId = useRestaurantStore((s) => s.currentRestaurantId);
@@ -31,6 +38,13 @@ export function OrdersPage() {
     page_size: 20,
   });
 
+  const errorMessage =
+    (error && typeof error === 'object' && 'response' in error
+      ? (error as { response?: { data?: { detail?: string }; status?: number } }).response?.data?.detail
+      : null) ||
+    (error instanceof Error ? error.message : null) ||
+    'Erreur lors du chargement des commandes.';
+
   const updateStatusMutation = useMutation({
     mutationFn: ({ orderId, status }: { orderId: string; status: OrderStatus }) =>
       ordersApi.updateStatus(orderId, status).then((r) => r.data),
@@ -39,10 +53,10 @@ export function OrdersPage() {
     },
   });
 
-  const response = data as OrdersResponse | undefined;
-  const orders: Order[] = response?.orders ?? [];
-  const total = response?.total ?? 0;
-  const hasMore = response?.has_more ?? false;
+  const orders = data?.orders ?? [];
+  const total = data?.total ?? 0;
+  const hasMore = data?.has_more ?? false;
+  const pageSize = data?.page_size ?? 20;
 
   if (!restaurantId) {
     return (
@@ -66,9 +80,9 @@ export function OrdersPage() {
             className="rounded-lg bg-slate-700 border border-slate-600 text-slate-200 px-3 py-2 text-sm"
           >
             <option value="">Tous les statuts</option>
-            {ORDER_STATUSES.map((value) => (
+            {Object.entries(STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
-                {STATUS_LABELS[value]}
+                {label}
               </option>
             ))}
           </select>
@@ -87,8 +101,12 @@ export function OrdersPage() {
         <div className="card card-inner text-center text-slate-400 py-12">Chargement...</div>
       ) : isError ? (
         <div className="card card-inner bg-red-500/10 border-red-500/30 text-red-300 text-sm py-6 space-y-2">
-          <p>{getApiErrorMessage(error)}</p>
-          <button type="button" onClick={() => refetch()} className="underline hover:no-underline">
+          <p>{errorMessage}</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="underline hover:no-underline"
+          >
             Réessayer
           </button>
         </div>
@@ -113,13 +131,13 @@ export function OrdersPage() {
                   </tr>
                 </thead>
                 <tbody className="text-slate-200 divide-y divide-slate-700">
-                  {orders.map((o) => (
+                  {orders.map((o: { id: string; user_name?: string; total_amount?: number; status?: string; payment_status?: string; created_at?: string }) => (
                     <tr key={o.id} className="hover:bg-slate-800/50">
                       <td className="px-4 py-3">{o.user_name ?? '—'}</td>
                       <td className="px-4 py-3">{(o.total_amount ?? 0).toLocaleString()} FCFA</td>
                       <td className="px-4 py-3">
                         <span className="px-2 py-0.5 rounded bg-slate-600 text-xs">
-                          {o.status ? STATUS_LABELS[o.status] : '—'}
+                          {STATUS_LABELS[o.status ?? ''] ?? o.status}
                         </span>
                       </td>
                       <td className="px-4 py-3">{o.payment_status ?? '—'}</td>
@@ -144,10 +162,9 @@ export function OrdersPage() {
                             </option>
                           ))}
                         </select>
-                        {updateStatusMutation.isError &&
-                          updateStatusMutation.variables?.orderId === o.id && (
-                            <span className="ml-1 text-xs text-red-400">Erreur</span>
-                          )}
+                        {updateStatusMutation.isError && updateStatusMutation.variables?.orderId === o.id && (
+                          <span className="ml-1 text-xs text-red-400">Erreur</span>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { useAuthStore } from '../store/authStore';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
 const API_PREFIX = (import.meta.env.VITE_API_PREFIX as string | undefined) ?? '/api/v1';
@@ -23,7 +22,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken;
+  const token = localStorage.getItem('access_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -34,17 +33,18 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      const { refreshToken, setTokens, logout } = useAuthStore.getState();
+      const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
           const { data } = await axios.post(`${baseURL}/auth/refresh`, {
             refresh_token: refreshToken,
           });
-          setTokens(data.access_token, data.refresh_token ?? refreshToken);
+          localStorage.setItem('access_token', data.access_token);
           originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
           return api(originalRequest);
         } catch {
-          logout();
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
           window.location.href = '/login';
         }
       }
