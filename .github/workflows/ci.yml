@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'restaurant-frontend/package-lock.json'
+
+      - name: Install deps
+        working-directory: restaurant-frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: restaurant-frontend
+        run: npm run lint
+
+      - name: Format check
+        working-directory: restaurant-frontend
+        run: npm run format:check
+
+      - name: Type check
+        working-directory: restaurant-frontend
+        run: npx tsc --noEmit
+
+      - name: Test
+        working-directory: restaurant-frontend
+        run: npm run test
+
+      - name: Build
+        working-directory: restaurant-frontend
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://api.example.com
