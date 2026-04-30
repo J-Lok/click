@@ -8,7 +8,8 @@ import { useToast } from '../../shared/components/ToastProvider';
 import { getApiErrorMessage } from '../../lib/apiError';
 
 const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000';
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)
+  ?? (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
 function resolveUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;

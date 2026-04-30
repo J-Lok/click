@@ -12,7 +12,8 @@ import { useToast } from '../../shared/components/ToastProvider';
 import { getApiErrorMessage } from '../../lib/apiError';
 import { Utensils, Plus, Pencil, Trash2, Camera, X, ImageOff } from 'lucide-react';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)
+  ?? (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
 function resolveImageUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
